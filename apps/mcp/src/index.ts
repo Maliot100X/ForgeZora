@@ -286,11 +286,12 @@ server.registerTool(
       chainId: z.number().optional(),
       currency: z.enum(["ZORA", "ETH"]).optional(),
       gasMultiplier: z.number().optional(),
+      additionalOwners: z.array(z.string()).optional(),
     },
   },
   async (args) => {
     ensureWallet();
-    const { name, symbol, uri, payoutRecipient, platformReferrer, chainId, currency } = args;
+    const { name, symbol, uri, payoutRecipient, platformReferrer, chainId, currency, gasMultiplier, additionalOwners } = args;
     const deployCurrency = currency === "ETH" ? CoinsSDK.CreateConstants.ContentCoinCurrencies.ETH : CoinsSDK.CreateConstants.ContentCoinCurrencies.ZORA;
     const result = await CoinsSDK.createCoin({
       call: {
@@ -298,10 +299,11 @@ server.registerTool(
         name,
         symbol,
         metadata: { type: "RAW_URI", uri },
-        payoutRecipientOverride: payoutRecipient as `0x${string}`,
-        platformReferrer: platformReferrer as `0x${string}`,
-        chainId: chainId ?? DEFAULT_CHAIN.id,
-        currency: deployCurrency,
+                payoutRecipientOverride: payoutRecipient as `0x${string}`,
+                platformReferrer: platformReferrer as `0x${string}`,
+                additionalOwners: additionalOwners as `0x${string}`[] | undefined,
+                chainId: chainId ?? DEFAULT_CHAIN.id,
+                currency: deployCurrency,
         startingMarketCap: CoinsSDK.CreateConstants.StartingMarketCaps.LOW,
       },
       walletClient: walletClient!,
