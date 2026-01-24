@@ -362,24 +362,29 @@ server.registerTool(
     } = args;
 
     const deployCurrency =
-      currency === "ETH" ? CoinsSDK.DeployCurrency.ETH : CoinsSDK.DeployCurrency.ZORA;
+      currency === "ETH" 
+        ? CoinsSDK.CreateConstants.ContentCoinCurrencies.ETH 
+        : CoinsSDK.CreateConstants.ContentCoinCurrencies.ZORA;
 
-    const result = await CoinsSDK.createCoin(
-      {
+    const result = await CoinsSDK.createCoin({
+      call: {
+        creator: account!.address,
         name,
         symbol,
-        uri: uri as any, // ValidMetadataURI, validated on chain by SDK
-        payoutRecipient: payoutRecipient as any,
-        platformReferrer: platformReferrer as any,
+        metadata: { type: "RAW_URI", uri },
+        payoutRecipientOverride: payoutRecipient as `0x${string}`,
+        platformReferrer: platformReferrer as `0x${string}`,
         chainId: chainId ?? DEFAULT_CHAIN.id,
         currency: deployCurrency,
+        startingMarketCap: CoinsSDK.CreateConstants.StartingMarketCaps.LOW,
       },
-      walletClient!,
+      walletClient: walletClient!,
       publicClient,
-      {
-        gasMultiplier: gasMultiplier ?? 120,
+      options: {
+        // gasMultiplier removed from options in v0.4.0?
+        // Using defaults for now.
       }
-    );
+    });
 
     return { content: [{ type: "text", text: json(result) }] };
   }
