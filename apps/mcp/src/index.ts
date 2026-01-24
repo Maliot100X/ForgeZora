@@ -1,8 +1,13 @@
 #!/usr/bin/env node
-import 'dotenv/config';
+import dotenv from 'dotenv';
+dotenv.config({ path: '.env.local' });
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import express from "express";
+import cors from "cors";
+import { PrismaClient } from "@prisma/client";
+import { NeynarAPIClient } from "@neynar/nodejs-sdk";
 
 // Zora Coins SDK
 import * as CoinsSDK from "@zoralabs/coins-sdk";
@@ -19,6 +24,7 @@ import { privateKeyToAccount } from "viem/accounts";
 
 const SERVER_NAME = "zora-coins-mcp";
 const SERVER_VERSION = "0.1.0";
+const HTTP_PORT = 3001;
 
 // ---- Env and clients ----
 const apiKey = process.env.ZORA_API_KEY;
@@ -68,6 +74,10 @@ function json(data: unknown): string {
     2
   );
 }
+
+// ---- Database & Neynar ----
+const prisma = new PrismaClient();
+const neynar = new NeynarAPIClient({ apiKey: process.env.NEYNAR_API_KEY || "" });
 
 // ---- MCP server ----
 const server = new McpServer({
@@ -494,8 +504,126 @@ server.registerTool(
   }
 );
 
+// ---- HTTP Server for Web App ----
+function startHttpServer() {
+  const app = express();
+  app.use(cors());
+  app.use(express.json());
+
+  // GET /wallets/:fid
+  app.get("/wallets/:fid", async (req, res) => {
+    try {
+      const fid = parseInt(req.params.fid);
+      if (isNaN(fid)) {
+        res.status(400).json({ error: "Invalid FID" });
+        return;
+      }
+
+      const user = await prisma.user.findUnique({
+        where: { fid },
+        include: { profile: true, wallets: true },
+      });
+
+      res.json({ user: user || null });
+    } catch (err: any) {
+      console.error("GET /wallets/:fid error:", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // POST /sync/:fid
+  app.post("/sync/:fid", async (req, res) => {
+    try {
+      const fid = parseInt(req.params.fid);
+      if (isNaN(fid)) {
+        res.status(400).json({ error: "Invalid FID" });
+        return;
+      }
+
+      // 1. Fetch user profile from Neynar
+      const { users } = await neynar.fetchBulkUsers({ fids: [fid] });
+      if (!users || users.length === 0) {
+        res.status(404).json({ error: "User not found on Neynar" });
+        return;
+      }
+      const neynarUser = users[0];
+
+      // 2. Upsert User & Profile
+      const user = await prisma.user.upsert({
+        where: { fid },
+        update: {},
+        create: { fid },
+      });
+
+      await prisma.farcasterProfile.upsert({
+        where: { fid },
+        update: {
+          username: neynarUser.username,
+          bio: neynarUser.profile.bio.text,
+          avatar_url: neynarUser.pfp_url,
+        },
+        create: {
+          fid,
+          username: neynarUser.username,
+          bio: neynarUser.profile.bio.text,
+          avatar_url: neynarUser.pfp_url,
+        },
+      });
+
+      // 3. Fetch verified addresses (wallets)
+      // Neynar user object contains 'verifications' which is an array of addresses
+      const verifications = neynarUser.verifications || [];
+      const verifiedAddresses = neynarUser.verified_addresses?.eth_addresses || [];
+      
+      // Combine unique addresses
+      const allAddresses = Array.from(new Set([...verifications, ...verifiedAddresses]));
+
+      // 4. Upsert Wallets
+      const walletOps = allAddresses.map((addr) =>
+        prisma.wallet.upsert({
+          where: {
+            user_id_address: {
+              user_id: user.id,
+              address: addr,
+            },
+          },
+          update: {
+            synced_at: new Date(),
+          },
+          create: {
+            user_id: user.id,
+            wallet_type: "farcaster", // Assuming these are FC connected wallets
+            address: addr,
+          },
+        })
+      );
+
+      await Promise.all(walletOps);
+
+      // Return updated data
+      const updatedUser = await prisma.user.findUnique({
+        where: { fid },
+        include: { profile: true, wallets: true },
+      });
+
+      res.json({ success: true, user: updatedUser });
+    } catch (err: any) {
+      console.error("POST /sync/:fid error:", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.listen(HTTP_PORT, () => {
+    console.error(`HTTP Server listening on port ${HTTP_PORT}`);
+  });
+}
+
 // ---- Connect transport ----
 async function main() {
+  // Start HTTP server in background
+  startHttpServer();
+
+  // Start MCP server
   const transport = new StdioServerTransport();
   await server.connect(transport);
   // Avoid noisy console logs: MCP hosts expect pure JSON over stdio.

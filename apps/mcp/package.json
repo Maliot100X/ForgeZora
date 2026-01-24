@@ -50,16 +50,23 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.17.2",
+    "@neynar/nodejs-sdk": "^3.125.0",
+    "@prisma/client": "5.22.0",
     "@zoralabs/coins-sdk": "^0.4.0",
     "@zoralabs/protocol-deployments": "0.6.2",
+    "cors": "^2.8.6",
     "dotenv": "^16.4.5",
+    "express": "^5.2.1",
     "viem": "^2.44.4",
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@types/node": "^24.2.1",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/node": "^24.10.9",
+    "prisma": "5.22.0",
     "tsx": "^4.16.5",
-    "typescript": "^5.5.4"
+    "typescript": "^5.9.3"
   },
   "engines": {
     "node": ">=18.17"

@@ -1,0 +1,47 @@
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(uuid())
+  fid           Int      @unique
+  session_token String?
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  profile FarcasterProfile?
+  wallets Wallet[]
+
+  @@map("users")
+}
+
+model FarcasterProfile {
+  id         String   @id @default(uuid())
+  fid        Int      @unique
+  username   String?
+  bio        String?
+  avatar_url String?
+  user       User     @relation(fields: [fid], references: [fid])
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@map("farcaster_profiles")
+}
+
+model Wallet {
+  id          String   @id @default(uuid())
+  user_id     String
+  wallet_type String   // "farcaster", "base", "metamask"
+  address     String
+  synced_at   DateTime @default(now())
+  user        User     @relation(fields: [user_id], references: [id])
+
+  @@unique([user_id, address])
+  @@map("wallets")
+}
