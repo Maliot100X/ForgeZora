@@ -8,10 +8,7 @@ import express from "express";
 import cors from "cors";
 import { PrismaClient } from "@prisma/client";
 import { NeynarAPIClient } from "@neynar/nodejs-sdk";
-
-// Zora Coins SDK
 import * as CoinsSDK from "@zoralabs/coins-sdk";
-
 import {
   createPublicClient,
   createWalletClient,
@@ -21,6 +18,7 @@ import {
 } from "viem";
 import { base } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
+import { fileURLToPath } from 'url';
 
 const SERVER_NAME = "zora-coins-mcp";
 const SERVER_VERSION = "0.1.0";
@@ -90,8 +88,7 @@ server.registerTool(
   "zora_health",
   {
     title: "Zora Coins server health",
-    description:
-      "Returns server and environment diagnostics (API key present, wallet, RPC, chain).",
+    description: "Returns server and environment diagnostics.",
     inputSchema: {},
   },
   async () => {
@@ -118,7 +115,7 @@ server.registerTool(
     },
   },
   async ({ address, chainId }) => {
-    // @ts-expect-error - TypeScript can't resolve barrel exports properly
+    // @ts-expect-error
     const resp = await CoinsSDK.getCoin({ address, chain: chainId ?? DEFAULT_CHAIN.id });
     return { content: [{ type: "text", text: json(resp) }] };
   }
@@ -130,18 +127,11 @@ server.registerTool(
     title: "Get multiple coins",
     description: "Batch fetch coins by address and chainId.",
     inputSchema: {
-      coins: z
-        .array(
-          z.object({
-            collectionAddress: z.string(),
-            chainId: z.number().default(DEFAULT_CHAIN.id),
-          })
-        )
-        .min(1),
+      coins: z.array(z.object({ collectionAddress: z.string(), chainId: z.number().default(DEFAULT_CHAIN.id) })).min(1),
     },
   },
   async ({ coins }) => {
-    // @ts-expect-error - TypeScript can't resolve barrel exports properly
+    // @ts-expect-error
     const resp = await CoinsSDK.getCoins({ coins });
     return { content: [{ type: "text", text: json(resp) }] };
   }
@@ -160,13 +150,8 @@ server.registerTool(
     },
   },
   async ({ address, chainId, after, count }) => {
-    // @ts-expect-error - TypeScript can't resolve barrel exports properly
-    const resp = await CoinsSDK.getCoinHolders({
-      address,
-      chainId,
-      after,
-      count,
-    });
+    // @ts-expect-error
+    const resp = await CoinsSDK.getCoinHolders({ address, chainId, after, count });
     return { content: [{ type: "text", text: json(resp) }] };
   }
 );
@@ -184,13 +169,8 @@ server.registerTool(
     },
   },
   async ({ address, chainId, after, first }) => {
-    // @ts-expect-error - TypeScript can't resolve barrel exports properly
-    const resp = await CoinsSDK.getCoinSwaps({
-      address,
-      chain: chainId,
-      after,
-      first,
-    });
+    // @ts-expect-error
+    const resp = await CoinsSDK.getCoinSwaps({ address, chain: chainId, after, first });
     return { content: [{ type: "text", text: json(resp) }] };
   }
 );
@@ -208,13 +188,8 @@ server.registerTool(
     },
   },
   async ({ address, chainId, after, count }) => {
-    // @ts-expect-error - TypeScript can't resolve barrel exports properly
-    const resp = await CoinsSDK.getCoinComments({
-      address,
-      chain: chainId,
-      after,
-      count,
-    });
+    // @ts-expect-error
+    const resp = await CoinsSDK.getCoinComments({ address, chain: chainId, after, count });
     return { content: [{ type: "text", text: json(resp) }] };
   }
 );
@@ -224,12 +199,10 @@ server.registerTool(
   {
     title: "Get profile",
     description: "Fetch profile for a wallet or @handle.",
-    inputSchema: {
-      identifier: z.string().min(1, "identifier (wallet or handle) is required"),
-    },
+    inputSchema: { identifier: z.string().min(1) },
   },
   async ({ identifier }) => {
-    // @ts-expect-error - TypeScript can't resolve barrel exports properly
+    // @ts-expect-error
     const resp = await CoinsSDK.getProfile({ identifier });
     return { content: [{ type: "text", text: json(resp) }] };
   }
@@ -249,7 +222,7 @@ server.registerTool(
     },
   },
   async (args) => {
-    // @ts-expect-error - TypeScript can't resolve barrel exports properly
+    // @ts-expect-error
     const resp = await CoinsSDK.getProfileCoins(args);
     return { content: [{ type: "text", text: json(resp) }] };
   }
@@ -267,29 +240,17 @@ server.registerTool(
     },
   },
   async ({ identifier, after, count }) => {
-    // @ts-expect-error - TypeScript can't resolve barrel exports properly
+    // @ts-expect-error
     const resp = await CoinsSDK.getProfileBalances({ identifier, after, count });
     return { content: [{ type: "text", text: json(resp) }] };
   }
 );
 
 // Explore queries
-function exploreTool(
-  name: string,
-  fn: (args: { after?: string; count?: number }) => Promise<unknown>,
-  title: string,
-  description: string
-) {
+function exploreTool(name: string, fn: any, title: string, description: string) {
   server.registerTool(
     name,
-    {
-      title,
-      description,
-      inputSchema: {
-        count: z.number().int().min(1).max(100).optional(),
-        after: z.string().optional(),
-      },
-    },
+    { title, description, inputSchema: { count: z.number().optional(), after: z.string().optional() } },
     async ({ after, count }) => {
       const resp = await fn({ after, count });
       return { content: [{ type: "text", text: json(resp) }] };
@@ -297,56 +258,25 @@ function exploreTool(
   );
 }
 
-exploreTool(
-  "zora_explore_top_gainers",
-  // @ts-expect-error - TypeScript can't resolve barrel exports properly
-  CoinsSDK.getCoinsTopGainers,
-  "Top gainers (24h)",
-  "Coins with highest market cap delta over last 24h."
-);
-exploreTool(
-  "zora_explore_top_volume_24h",
-  // @ts-expect-error - TypeScript can't resolve barrel exports properly
-  CoinsSDK.getCoinsTopVolume24h,
-  "Top 24h volume",
-  "Coins with highest trading volume in last 24 hours."
-);
-exploreTool(
-  "zora_explore_most_valuable",
-  // @ts-expect-error - TypeScript can't resolve barrel exports properly
-  CoinsSDK.getCoinsMostValuable,
-  "Most valuable",
-  "Coins with highest market capitalization."
-);
-exploreTool(
-  "zora_explore_new",
-  // @ts-expect-error - TypeScript can't resolve barrel exports properly
-  CoinsSDK.getCoinsNew,
-  "New coins",
-  "Most recently created coins."
-);
-exploreTool(
-  "zora_explore_last_traded",
-  // @ts-expect-error - TypeScript can't resolve barrel exports properly
-  CoinsSDK.getCoinsLastTraded,
-  "Last traded",
-  "Coins most recently traded."
-);
-exploreTool(
-  "zora_explore_last_traded_unique",
-  // @ts-expect-error - TypeScript can't resolve barrel exports properly
-  CoinsSDK.getCoinsLastTradedUnique,
-  "Last traded (unique traders)",
-  "Coins most recently traded by unique traders."
-);
+// @ts-expect-error
+exploreTool("zora_explore_top_gainers", CoinsSDK.getCoinsTopGainers, "Top gainers", "Coins with highest market cap delta.");
+// @ts-expect-error
+exploreTool("zora_explore_top_volume_24h", CoinsSDK.getCoinsTopVolume24h, "Top 24h volume", "Coins with highest volume.");
+// @ts-expect-error
+exploreTool("zora_explore_most_valuable", CoinsSDK.getCoinsMostValuable, "Most valuable", "Coins with highest market cap.");
+// @ts-expect-error
+exploreTool("zora_explore_new", CoinsSDK.getCoinsNew, "New coins", "Most recently created coins.");
+// @ts-expect-error
+exploreTool("zora_explore_last_traded", CoinsSDK.getCoinsLastTraded, "Last traded", "Coins most recently traded.");
+// @ts-expect-error
+exploreTool("zora_explore_last_traded_unique", CoinsSDK.getCoinsLastTradedUnique, "Last traded (unique)", "Unique traders.");
 
 // ---- Write tools ----
 server.registerTool(
   "zora_create_coin",
   {
     title: "Create a new coin",
-    description:
-      "Deploy a new Zora coin. Requires PRIVATE_KEY; only Base mainnet is supported currently.",
+    description: "Deploy a new Zora coin.",
     inputSchema: {
       name: z.string().min(1),
       symbol: z.string().min(1),
@@ -355,27 +285,13 @@ server.registerTool(
       platformReferrer: z.string().optional(),
       chainId: z.number().optional(),
       currency: z.enum(["ZORA", "ETH"]).optional(),
-      gasMultiplier: z.number().int().min(50).max(500).optional(),
+      gasMultiplier: z.number().optional(),
     },
   },
   async (args) => {
     ensureWallet();
-    const {
-      name,
-      symbol,
-      uri,
-      payoutRecipient,
-      platformReferrer,
-      chainId,
-      currency,
-      gasMultiplier,
-    } = args;
-
-    const deployCurrency =
-      currency === "ETH" 
-        ? CoinsSDK.CreateConstants.ContentCoinCurrencies.ETH 
-        : CoinsSDK.CreateConstants.ContentCoinCurrencies.ZORA;
-
+    const { name, symbol, uri, payoutRecipient, platformReferrer, chainId, currency } = args;
+    const deployCurrency = currency === "ETH" ? CoinsSDK.CreateConstants.ContentCoinCurrencies.ETH : CoinsSDK.CreateConstants.ContentCoinCurrencies.ZORA;
     const result = await CoinsSDK.createCoin({
       call: {
         creator: account!.address,
@@ -390,12 +306,8 @@ server.registerTool(
       },
       walletClient: walletClient!,
       publicClient,
-      options: {
-        // gasMultiplier removed from options in v0.4.0?
-        // Using defaults for now.
-      }
+      options: {}
     });
-
     return { content: [{ type: "text", text: json(result) }] };
   }
 );
@@ -404,20 +316,12 @@ server.registerTool(
   "zora_update_coin_uri",
   {
     title: "Update coin metadata URI",
-    description:
-      "Update the token metadata URI for an existing coin. Requires owner wallet.",
-    inputSchema: {
-      coin: z.string().min(1),
-      newURI: z.string().min(1),
-    },
+    description: "Update the token metadata URI.",
+    inputSchema: { coin: z.string().min(1), newURI: z.string().min(1) },
   },
   async ({ coin, newURI }) => {
     ensureWallet();
-    const result = await CoinsSDK.updateCoinURI(
-      { coin: coin as any, newURI },
-      walletClient!,
-      publicClient
-    );
+    const result = await CoinsSDK.updateCoinURI({ coin: coin as any, newURI }, walletClient!, publicClient);
     return { content: [{ type: "text", text: json(result) }] };
   }
 );
@@ -426,20 +330,12 @@ server.registerTool(
   "zora_update_payout_recipient",
   {
     title: "Update payout recipient",
-    description:
-      "Change the payout recipient address (creator earnings). Requires owner wallet.",
-    inputSchema: {
-      coin: z.string().min(1),
-      newPayoutRecipient: z.string().min(1),
-    },
+    description: "Change the payout recipient address.",
+    inputSchema: { coin: z.string().min(1), newPayoutRecipient: z.string().min(1) },
   },
   async ({ coin, newPayoutRecipient }) => {
     ensureWallet();
-    const result = await CoinsSDK.updatePayoutRecipient(
-      { coin: coin as any, newPayoutRecipient: newPayoutRecipient as any },
-      walletClient!,
-      publicClient
-    );
+    const result = await CoinsSDK.updatePayoutRecipient({ coin: coin as any, newPayoutRecipient: newPayoutRecipient as any }, walletClient!, publicClient);
     return { content: [{ type: "text", text: json(result) }] };
   }
 );
@@ -448,188 +344,216 @@ server.registerTool(
   "zora_trade_coin",
   {
     title: "Trade coin",
-    description:
-      "Swap ETH or ERC20 for a coin (or back). Uses permit2 for ERC20 where supported. Requires PRIVATE_KEY (EOA).",
+    description: "Swap ETH or ERC20 for a coin.",
     inputSchema: {
       sellType: z.enum(["eth", "erc20"]),
-      sellAddress: z.string().optional(),     // required if sellType = erc20
-      sellDecimals: z.number().int().min(0).max(36).optional(), // required if sellType = erc20
+      sellAddress: z.string().optional(),
+      sellDecimals: z.number().optional(),
       buyType: z.enum(["eth", "erc20"]),
-      buyAddress: z.string().optional(),      // required if buyType = erc20
-      amount: z.string().min(1),              // human-readable, e.g., "0.001" ETH or "4" USDC
-      slippage: z.number().min(0).max(0.99).default(0.05).optional(),
+      buyAddress: z.string().optional(),
+      amount: z.string().min(1),
+      slippage: z.number().optional(),
       recipient: z.string().optional(),
       sender: z.string().optional(),
     },
   },
   async (args) => {
     ensureWallet();
-    const {
-      sellType,
-      sellAddress,
-      sellDecimals,
-      buyType,
-      buyAddress,
-      amount,
-      slippage,
-      recipient,
-      sender,
-    } = args;
-
-    const amountIn =
-      sellType === "eth"
-        ? parseEther(amount)
-        : parseUnits(
-            amount,
-            typeof sellDecimals === "number" ? sellDecimals : 18
-          );
-
+    const { sellType, sellAddress, sellDecimals, buyType, buyAddress, amount, slippage, recipient, sender } = args;
+    const amountIn = sellType === "eth" ? parseEther(amount) : parseUnits(amount, sellDecimals ?? 18);
     const tradeParameters: any = {
       sell: sellType === "eth" ? { type: "eth" } : { type: "erc20", address: sellAddress },
       buy: buyType === "eth" ? { type: "eth" } : { type: "erc20", address: buyAddress },
       amountIn,
-      slippage: typeof slippage === "number" ? slippage : 0.05,
+      slippage: slippage ?? 0.05,
       sender: sender || account!.address,
       recipient: recipient || account!.address,
     };
-
-    const receipt = await CoinsSDK.tradeCoin({
-      tradeParameters,
-      walletClient: walletClient!,
-      account: account!,
-      publicClient,
-    });
-
+    const receipt = await CoinsSDK.tradeCoin({ tradeParameters, walletClient: walletClient!, account: account!, publicClient });
     return { content: [{ type: "text", text: json(receipt) }] };
   }
 );
 
-// ---- HTTP Server for Web App ----
-function startHttpServer() {
-  const app = express();
-  app.use(cors());
-  app.use(express.json());
+// ---- HTTP App ----
+const app = express();
+app.use(cors());
+app.use(express.json());
 
-  // GET /wallets/:fid
-  app.get("/wallets/:fid", async (req, res) => {
-    try {
-      const fid = parseInt(req.params.fid);
-      if (isNaN(fid)) {
-        res.status(400).json({ error: "Invalid FID" });
-        return;
-      }
+// GET /wallets/:fid
+app.get("/wallets/:fid", async (req, res) => {
+  try {
+    const fid = parseInt(req.params.fid);
+    if (isNaN(fid)) { res.status(400).json({ error: "Invalid FID" }); return; }
+    const user = await prisma.user.findUnique({ where: { fid }, include: { profile: true, wallets: true } });
+    res.json({ user: user || null });
+  } catch (err: any) {
+    console.error("GET /wallets/:fid error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
 
-      const user = await prisma.user.findUnique({
-        where: { fid },
-        include: { profile: true, wallets: true },
-      });
+// POST /sync/:fid
+app.post("/sync/:fid", async (req, res) => {
+  try {
+    const fid = parseInt(req.params.fid);
+    if (isNaN(fid)) { res.status(400).json({ error: "Invalid FID" }); return; }
+    const { users } = await neynar.fetchBulkUsers({ fids: [fid] });
+    if (!users || users.length === 0) { res.status(404).json({ error: "User not found on Neynar" }); return; }
+    const neynarUser = users[0];
+    const user = await prisma.user.upsert({ where: { fid }, update: {}, create: { fid } });
+    await prisma.farcasterProfile.upsert({
+      where: { fid },
+      update: { username: neynarUser.username, bio: neynarUser.profile.bio.text, avatar_url: neynarUser.pfp_url },
+      create: { fid, username: neynarUser.username, bio: neynarUser.profile.bio.text, avatar_url: neynarUser.pfp_url },
+    });
+    const verifications = neynarUser.verifications || [];
+    const verifiedAddresses = neynarUser.verified_addresses?.eth_addresses || [];
+    const allAddresses = Array.from(new Set([...verifications, ...verifiedAddresses]));
+    await Promise.all(allAddresses.map((addr) =>
+      prisma.wallet.upsert({
+        where: { user_id_address: { user_id: user.id, address: addr } },
+        update: { synced_at: new Date() },
+        create: { user_id: user.id, wallet_type: "farcaster", address: addr },
+      })
+    ));
+    const updatedUser = await prisma.user.findUnique({ where: { fid }, include: { profile: true, wallets: true } });
+    res.json({ success: true, user: updatedUser });
+  } catch (err: any) {
+    console.error("POST /sync/:fid error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
 
-      res.json({ user: user || null });
-    } catch (err: any) {
-      console.error("GET /wallets/:fid error:", err);
-      res.status(500).json({ error: err.message });
-    }
-  });
+// Zora Read Endpoints
+app.get("/zora_health", async (req, res) => {
+  try {
+    const resp = { server: { name: SERVER_NAME, version: SERVER_VERSION }, apiKeyConfigured: !!apiKey, rpcUrl: baseRpcUrl, chainId, walletAddress: account?.address || null };
+    res.json(resp);
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
 
-  // POST /sync/:fid
-  app.post("/sync/:fid", async (req, res) => {
-    try {
-      const fid = parseInt(req.params.fid);
-      if (isNaN(fid)) {
-        res.status(400).json({ error: "Invalid FID" });
-        return;
-      }
+app.get("/zora_explore_new", async (req, res) => {
+  try {
+    // @ts-expect-error
+    const resp = await CoinsSDK.getCoinsNew(req.query);
+    res.json(resp);
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
 
-      // 1. Fetch user profile from Neynar
-      const { users } = await neynar.fetchBulkUsers({ fids: [fid] });
-      if (!users || users.length === 0) {
-        res.status(404).json({ error: "User not found on Neynar" });
-        return;
-      }
-      const neynarUser = users[0];
+app.get("/zora_explore_top_gainers", async (req, res) => {
+  try {
+    // @ts-expect-error
+    const resp = await CoinsSDK.getCoinsTopGainers(req.query);
+    res.json(resp);
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
 
-      // 2. Upsert User & Profile
-      const user = await prisma.user.upsert({
-        where: { fid },
-        update: {},
-        create: { fid },
-      });
+app.get("/zora_explore_top_volume_24h", async (req, res) => {
+  try {
+    // @ts-expect-error
+    const resp = await CoinsSDK.getCoinsTopVolume24h(req.query);
+    res.json(resp);
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
 
-      await prisma.farcasterProfile.upsert({
-        where: { fid },
-        update: {
-          username: neynarUser.username,
-          bio: neynarUser.profile.bio.text,
-          avatar_url: neynarUser.pfp_url,
-        },
-        create: {
-          fid,
-          username: neynarUser.username,
-          bio: neynarUser.profile.bio.text,
-          avatar_url: neynarUser.pfp_url,
-        },
-      });
+app.get("/zora_explore_most_valuable", async (req, res) => {
+  try {
+    // @ts-expect-error
+    const resp = await CoinsSDK.getCoinsMostValuable(req.query);
+    res.json(resp);
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
 
-      // 3. Fetch verified addresses (wallets)
-      // Neynar user object contains 'verifications' which is an array of addresses
-      const verifications = neynarUser.verifications || [];
-      const verifiedAddresses = neynarUser.verified_addresses?.eth_addresses || [];
-      
-      // Combine unique addresses
-      const allAddresses = Array.from(new Set([...verifications, ...verifiedAddresses]));
+app.get("/zora_explore_last_traded", async (req, res) => {
+  try {
+    // @ts-expect-error
+    const resp = await CoinsSDK.getCoinsLastTraded(req.query);
+    res.json(resp);
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
 
-      // 4. Upsert Wallets
-      const walletOps = allAddresses.map((addr) =>
-        prisma.wallet.upsert({
-          where: {
-            user_id_address: {
-              user_id: user.id,
-              address: addr,
-            },
-          },
-          update: {
-            synced_at: new Date(),
-          },
-          create: {
-            user_id: user.id,
-            wallet_type: "farcaster", // Assuming these are FC connected wallets
-            address: addr,
-          },
-        })
-      );
+app.get("/zora_get_coins", async (req, res) => {
+  try {
+    let coinsArg = req.query.coins;
+    if (typeof coinsArg === 'string') { try { coinsArg = JSON.parse(coinsArg); } catch (e) {} }
+    // @ts-expect-error
+    const resp = await CoinsSDK.getCoins({ coins: coinsArg });
+    res.json(resp);
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
 
-      await Promise.all(walletOps);
+app.get("/zora_get_coin/:id", async (req, res) => {
+  try {
+    const address = req.params.id;
+    const chainIdParam = req.query.chainId ? Number(req.query.chainId) : undefined;
+    // @ts-expect-error
+    const resp = await CoinsSDK.getCoin({ address, chain: chainIdParam ?? DEFAULT_CHAIN.id });
+    res.json(resp);
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
 
-      // Return updated data
-      const updatedUser = await prisma.user.findUnique({
-        where: { fid },
-        include: { profile: true, wallets: true },
-      });
+app.get("/zora_get_coin_holders/:id", async (req, res) => {
+  try {
+    const address = req.params.id;
+    // @ts-expect-error
+    const resp = await CoinsSDK.getCoinHolders({ address, ...req.query });
+    res.json(resp);
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
 
-      res.json({ success: true, user: updatedUser });
-    } catch (err: any) {
-      console.error("POST /sync/:fid error:", err);
-      res.status(500).json({ error: err.message });
-    }
-  });
+app.get("/zora_get_coin_swaps/:id", async (req, res) => {
+  try {
+    const address = req.params.id;
+    // @ts-expect-error
+    const resp = await CoinsSDK.getCoinSwaps({ address, ...req.query });
+    res.json(resp);
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
 
+app.get("/zora_get_coin_comments/:id", async (req, res) => {
+  try {
+    const address = req.params.id;
+    // @ts-expect-error
+    const resp = await CoinsSDK.getCoinComments({ address, ...req.query });
+    res.json(resp);
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.get("/zora_get_profile", async (req, res) => {
+  try {
+    const identifier = req.query.identifier as string;
+    if (!identifier) { res.status(400).json({ error: "identifier is required" }); return; }
+    // @ts-expect-error
+    const resp = await CoinsSDK.getProfile({ identifier });
+    res.json(resp);
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.get("/zora_get_profile_coins", async (req, res) => {
+  try {
+    // @ts-expect-error
+    const resp = await CoinsSDK.getProfileCoins(req.query);
+    res.json(resp);
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.get("/zora_get_profile_balances", async (req, res) => {
+  try {
+    // @ts-expect-error
+    const resp = await CoinsSDK.getProfileBalances(req.query);
+    res.json(resp);
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// Export app for Vercel
+export default app;
+
+// Run if called directly
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
   app.listen(HTTP_PORT, () => {
     console.error(`HTTP Server listening on port ${HTTP_PORT}`);
   });
-}
-
-// ---- Connect transport ----
-async function main() {
-  // Start HTTP server in background
-  startHttpServer();
-
-  // Start MCP server
+  
   const transport = new StdioServerTransport();
-  await server.connect(transport);
-  // Avoid noisy console logs: MCP hosts expect pure JSON over stdio.
+  server.connect(transport);
 }
-
-main().catch((err) => {
-  console.error("Fatal MCP server error:", err);
-  process.exit(1);
-});
